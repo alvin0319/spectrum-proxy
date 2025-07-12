@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/c-bata/go-prompt"
 	"github.com/cooldogedev/spectrum"
@@ -17,6 +18,7 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/resource"
 	"image/color"
 	"log/slog"
+	"net/http"
 	"os"
 	"path"
 	"runtime"
@@ -30,6 +32,7 @@ var serverMap = make(map[string]string)
 var addressToName = make(map[string]string)
 
 var lobbyServerAddress string
+var resourcePackServer *ResourcePackServer
 
 // LobbyDiscovery implements server.Discovery to discover the lobby server address.
 type LobbyDiscovery struct {
@@ -48,11 +51,19 @@ type ServerConfig struct {
 	ShutdownMessage string `toml:"shutdown_message"`
 	// Debug enables debug mode, which logs more information.
 	Debug bool `toml:"debug"`
+	// CdnConfig contains CDN configuration.
+	CdnConfig CdnConfig `toml:"cdn_config"`
 }
 
 type Server struct {
 	Name string `toml:"name"`
 	Addr string `toml:"addr"`
+}
+
+type CdnConfig struct {
+	Enabled bool   `toml:"enabled"`
+	Ip      string `toml:"ip"`
+	Port    int    `toml:"port"`
 }
 
 // Discover returns the lobby server address for the player to connect to.
@@ -136,6 +147,36 @@ func main() {
 	}
 
 	logger.Info("Loaded resource packs", "count", len(packs))
+
+	// Start the HTTP resource pack server if CDN is enabled
+	if conf.CdnConfig.Enabled && len(packs) > 0 {
+		baseURL := fmt.Sprintf("http://%s:%d", conf.CdnConfig.Ip, conf.CdnConfig.Port)
+
+		// Create and start the resource pack HTTP server
+		resourcePackServer, err = NewResourcePackServer(packs, conf.CdnConfig.Port, logger)
+		if err != nil {
+			logger.Error("Failed to create resource pack HTTP server", "error", err)
+			return
+		}
+
+		// Start the HTTP server in a goroutine
+		go func() {
+			if err := resourcePackServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("Resource pack HTTP server error", "error", err)
+			}
+		}()
+
+		// Wait for the server to be ready before modifying resource packs
+		resourcePackServer.WaitForReady()
+		logger.Info("Resource pack HTTP server is ready", "baseURL", baseURL)
+
+		// Modify resource packs to use HTTP URLs
+		packs = ModifyResourcePackForCDN(packs, baseURL)
+		for _, pack := range packs {
+			logger.Debug("Loaded resource pack", "name", pack.Name(), "uuid", pack.UUID(), "url", pack.DownloadURL())
+		}
+		logger.Info("Modified resource packs to use HTTP URLs")
+	}
 
 	proxy := spectrum.NewSpectrum(server.NewStaticDiscovery(lobbyServerAddress, lobbyServerAddress), logger, &util.Opts{
 		ShutdownMessage: conf.ShutdownMessage,
@@ -328,6 +369,11 @@ func handleCommand(command string, proxy *spectrum.Spectrum, conf *ServerConfig)
 		logger.Info(fmt.Sprintf("Total Allocated Memory: %.2f MB", float64(memStats.TotalAlloc)/1024/1024))
 
 	case "stop", "end":
+		if resourcePackServer != nil {
+			if err := resourcePackServer.Close(); err != nil {
+				logger.Error("Failed to close resource pack HTTP server", "error", err)
+			}
+		}
 		proxy.Close()
 		logger.Info("Stopped proxy")
 		os.Exit(0)
@@ -355,6 +401,11 @@ func readConfig() (*ServerConfig, error) {
 			},
 		},
 		ShutdownMessage: "Proxy shutdown",
+		CdnConfig: CdnConfig{
+			Enabled: false,
+			Ip:      "0.0.0.0",
+			Port:    8080,
+		},
 	}
 	if _, err := os.Stat("config.toml"); err == nil {
 		data, err := os.ReadFile("config.toml")
