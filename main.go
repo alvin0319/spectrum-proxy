@@ -80,7 +80,7 @@ func (l *LobbyProcessor) ProcessServer(ctx *session.Context, pk *packet.Packet) 
 		addr := t.Address
 		if a, ok := serverMap[addr]; ok {
 			ctx.Cancel()
-			err := l.s.Transfer(a)
+			err := l.s.TransferTimeout(a, 10*time.Second)
 			if err != nil {
 				l.log.Error("failed to transfer", "err", err, "address", addr)
 				l.s.CloseWithError(err)
