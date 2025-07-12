@@ -3,7 +3,7 @@ module github.com/alvin0319/spectrum-proxy
 go 1.24.3
 
 require (
-	github.com/cooldogedev/spectrum v0.0.40
+	github.com/cooldogedev/spectrum v0.0.40-0.20250527034552-55ddfe1bba67
 	github.com/pelletier/go-toml v1.9.5
 	github.com/sandertv/gophertunnel v1.48.1
 )

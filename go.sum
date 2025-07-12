@@ -17,6 +17,8 @@ github.com/c-bata/go-prompt v0.2.6/go.mod h1:/LMAke8wD2FsNu9EXNdHxNLbd9MedkPnCdf
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cooldogedev/spectral v0.0.5 h1:VTWbJkqwDqg/eeDwIXwC6+jpXEGlOzu6QzP1hSEUhIM=
 github.com/cooldogedev/spectral v0.0.5/go.mod h1:Oq9dVLgqaRiS/hZvKvLk/XWXFOZmmTKM29u6o4GBe84=
+github.com/cooldogedev/spectrum v0.0.40-0.20250527034552-55ddfe1bba67 h1:eCxwhcFAQP2TR5+uPhr/Yh6ucVvcgpotm1lVuRKivUI=
+github.com/cooldogedev/spectrum v0.0.40-0.20250527034552-55ddfe1bba67/go.mod h1:N4OqsCQvKJPhf8XertG+JHiP2RPfxvneiWiR9KLyVMo=
 github.com/cooldogedev/spectrum v0.0.40 h1:kclOr+jWjE72A87oT16pv1xqwD8YTdnuj2OUJAJNL7Q=
 github.com/cooldogedev/spectrum v0.0.40/go.mod h1:N4OqsCQvKJPhf8XertG+JHiP2RPfxvneiWiR9KLyVMo=
 github.com/coreos/go-systemd v0.0.0-20181012123002-c6f51f82210d/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
