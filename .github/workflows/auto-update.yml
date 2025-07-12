@@ -1,0 +1,73 @@
+name: auto-update.yml
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs daily at midnight
+  workflow_dispatch:
+
+jobs:
+  update-gophertunnel-dependency:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # To push changes and create releases
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Get latest gophertunnel tag
+        id: get_latest_tag
+        run: |
+          LATEST_TAG=$(curl -sL "https://api.github.com/repos/sandertv/gophertunnel/releases/latest" | jq -r .tag_name)
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Get current gophertunnel version
+        id: get_current_version
+        run: |
+          CURRENT_VERSION=$(go list -m -f '{{.Version}}' github.com/sandertv/gophertunnel)
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Compare versions
+        id: compare_versions
+        if: steps.get_latest_tag.outputs.tag != steps.get_current_version.outputs.version
+        run: |
+          echo "new_version_found=true" >> $GITHUB_OUTPUT
+
+      - name: Update dependency
+        if: steps.compare_versions.outputs.new_version_found == 'true'
+        run: go get github.com/sandertv/gophertunnel@${{ steps.get_latest_tag.outputs.tag }}
+
+      - name: Tidy modules
+        if: steps.compare_versions.outputs.new_version_found == 'true'
+        run: go mod tidy
+
+      - name: Build binaries
+        if: steps.compare_versions.outputs.new_version_found == 'true'
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o spectum-proxy-linux-amd64 .
+          GOOS=windows GOARCH=amd64 go build -o spectum-proxy-windows-amd64.exe .
+          GOOS=darwin GOARCH=amd64 go build -o spectum-proxy-darwin-amd64 .
+
+      - name: Commit and push changes
+        if: steps.compare_versions.outputs.new_version_found == 'true'
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add go.mod go.sum
+          git commit -m "chore(deps): Update gophertunnel to ${{ steps.get_latest_tag.outputs.tag }}"
+          git push
+
+      - name: Create Release and Upload Assets
+        if: steps.compare_versions.outputs.new_version_found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ steps.get_latest_tag.outputs.tag }} \
+            --title "Release ${{ steps.get_latest_tag.outputs.tag }}" \
+            --notes "Updated gophertunnel to version ${{ steps.get_latest_tag.outputs.tag }}." \
+            spectum-proxy-linux-amd64 \
+            spectum-proxy-windows-amd64.exe \
+            spectum-proxy-darwin-amd64
