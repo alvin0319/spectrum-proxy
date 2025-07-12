@@ -141,7 +141,7 @@ func main() {
 		return
 	}
 
-	packs, err := parse(make(map[string]string)) // TODO: support content keys
+	packs, err := parse(make(map[string]string), logger) // TODO: support content keys
 	if err != nil {
 		logger.Error("failed to parse resource packs", "err", err)
 		return
@@ -435,7 +435,7 @@ func readConfig() (*ServerConfig, error) {
 }
 
 // parse reads resource packs from the "resource_packs" directory and applies content keys if provided.
-func parse(keys map[string]string) ([]*resource.Pack, error) {
+func parse(keys map[string]string, logger *slog.Logger) ([]*resource.Pack, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -463,6 +463,8 @@ func parse(keys map[string]string) ([]*resource.Pack, error) {
 		if key, ok := keys[pack.UUID().String()]; ok {
 			pack = pack.WithContentKey(key)
 		}
+		sizeInMB := float64(pack.Len()) / (1024 * 1024)
+		logger.Debug("Loaded pack", "name", pack.Name(), "size", fmt.Sprintf("%.2fMB", sizeInMB), "uuid", pack.UUID(), "version", pack.Version())
 		packs = append(packs, pack)
 	}
 	return packs, nil
