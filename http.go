@@ -17,6 +17,9 @@ type ResourcePackServer struct {
 	// packs is a map of UUID -> resource pack
 	packs     map[string]*resource.Pack
 	packMutex sync.RWMutex
+	// contentCache is a map of UUID -> cached content
+	contentCache      map[string][]byte
+	contentCacheMutex sync.RWMutex
 	// basePath is the path to the resource packs directory
 	basePath string
 	// logger for the server
@@ -38,15 +41,31 @@ func NewResourcePackServer(packs []*resource.Pack, port int, logger *slog.Logger
 
 	// Create a map of UUID -> resource pack
 	packMap := make(map[string]*resource.Pack)
+	// Create content cache map
+	contentCache := make(map[string][]byte)
+
 	for _, pack := range packs {
-		packMap[pack.UUID().String()] = pack
+		uuid := pack.UUID().String()
+		packMap[uuid] = pack
+
+		// Pre-load the resource pack content into memory
+		content := make([]byte, pack.Len())
+		_, err := pack.ReadAt(content, 0)
+		if err != nil {
+			logger.Error("Failed to cache resource pack", "uuid", uuid, "error", err)
+			continue
+		}
+		contentCache[uuid] = content
+		logger.Debug("Cached resource pack", "uuid", uuid, "size", len(content))
 	}
 
 	s := &ResourcePackServer{
-		packs:     packMap,
-		packMutex: sync.RWMutex{},
-		basePath:  basePath,
-		logger:    logger,
+		packs:             packMap,
+		packMutex:         sync.RWMutex{},
+		contentCache:      contentCache,
+		contentCacheMutex: sync.RWMutex{},
+		basePath:          basePath,
+		logger:            logger,
 		server: &http.Server{
 			Addr: fmt.Sprintf(":%d", port),
 		},
@@ -130,24 +149,36 @@ func (s *ResourcePackServer) handleRequest(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	b := make([]byte, pack.Len())
-	_, err := pack.ReadAt(b, 0)
-	if err != nil {
-		s.logger.Error("Failed to read resource pack", "uuid", path, "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+	s.contentCacheMutex.RLock()
+	content, ok := s.contentCache[path]
+	s.contentCacheMutex.RUnlock()
+
+	if !ok {
+		s.logger.Debug("Resource pack not cached, reading from pack", "uuid", path)
+		content = make([]byte, pack.Len())
+		_, err := pack.ReadAt(content, 0)
+		if err != nil {
+			s.logger.Error("Failed to read resource pack", "uuid", path, "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// Cache the content
+		s.contentCacheMutex.Lock()
+		s.contentCache[path] = content
+		s.contentCacheMutex.Unlock()
 	}
 
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.mcpack", path))
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(b)))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
 
-	if _, err := w.Write(b); err != nil {
+	if _, err := w.Write(content); err != nil {
 		s.logger.Error("Failed to write resource pack to response", "uuid", path, "error", err)
 		return
 	}
 
-	s.logger.Debug("Served resource pack", "uuid", path, "size", len(b))
+	s.logger.Debug("Served resource pack", "uuid", path, "size", len(content))
 }
 
 // ModifyResourcePackForCDN modifies resource packs to use HTTP URLs instead of direct content
