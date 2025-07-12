@@ -44,6 +44,8 @@ type ServerConfig struct {
 	Servers []Server `toml:"servers"`
 	// ShutdownMessage is the message sent to players when the proxy is shutting down.
 	ShutdownMessage string `toml:"shutdown_message"`
+	// Debug enables debug mode, which logs more information.
+	Debug bool `toml:"debug"`
 }
 
 type Server struct {
@@ -88,22 +90,29 @@ func (l *LobbyProcessor) ProcessServer(ctx *session.Context, pk *packet.Packet) 
 }
 
 func main() {
-	slog.SetLogLoggerLevel(slog.LevelInfo)
+	conf, err := readConfig()
+	if err != nil {
+		panic(fmt.Errorf("read config: %w", err))
+	}
+
+	var logLevel slog.Level
+	if conf.Debug {
+		logLevel = slog.LevelDebug
+	} else {
+		logLevel = slog.LevelInfo
+	}
+
+	slog.SetLogLoggerLevel(logLevel)
 
 	w := os.Stderr
 	logger := slog.New(
 		tint.NewHandler(w, &tint.Options{
-			Level:      slog.LevelInfo,
+			Level:      logLevel,
 			TimeFormat: time.TimeOnly,
 		}),
 	)
 	slog.SetDefault(logger)
 
-	conf, err := readConfig()
-	if err != nil {
-		logger.Error("read config: ", "err", err)
-		return
-	}
 	for _, srv := range conf.Servers {
 		serverMap[srv.Name] = srv.Addr
 		addressToName[srv.Addr] = srv.Name
