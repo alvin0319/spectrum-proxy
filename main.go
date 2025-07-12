@@ -88,15 +88,17 @@ func (l *LobbyProcessor) ProcessServer(ctx *session.Context, pk *packet.Packet) 
 }
 
 func main() {
-	w := os.Stderr
-	logger := slog.New(tint.NewHandler(w, nil))
+	slog.SetLogLoggerLevel(slog.LevelInfo)
 
-	slog.SetDefault(slog.New(
+	w := os.Stderr
+	logger := slog.New(
 		tint.NewHandler(w, &tint.Options{
 			Level:      slog.LevelInfo,
 			TimeFormat: time.TimeOnly,
 		}),
-	))
+	)
+	slog.SetDefault(logger)
+
 	conf, err := readConfig()
 	if err != nil {
 		logger.Error("read config: ", "err", err)
