@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -205,7 +206,13 @@ func main() {
 
 	logger.Info("Starting spectrum proxy", "addr", proxy.Opts().Addr, "mc-version", protocol.CurrentVersion, "go-version", info.GoVersion, "commit", revision)
 
-	go processCommand(proxy, conf)
+	// Workaround for no terminal input on Linux (no windows support lol)
+	if runtime.GOOS == "linux" {
+		_, err := syscall.Open("/dev/tty", syscall.O_RDONLY, 0)
+		if err == nil {
+			go processCommand(proxy, conf)
+		}
+	}
 
 	for {
 		s, err := proxy.Accept()
