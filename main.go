@@ -6,6 +6,7 @@ import (
 	"github.com/cooldogedev/spectrum"
 	"github.com/cooldogedev/spectrum/server"
 	"github.com/cooldogedev/spectrum/session"
+	"github.com/cooldogedev/spectrum/session/animation"
 	"github.com/cooldogedev/spectrum/transport"
 	"github.com/cooldogedev/spectrum/util"
 	"github.com/lmittmann/tint"
@@ -14,6 +15,7 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"github.com/sandertv/gophertunnel/minecraft/resource"
+	"image/color"
 	"log/slog"
 	"os"
 	"path"
@@ -172,6 +174,14 @@ func main() {
 		s.SetProcessor(&LobbyProcessor{
 			s:   s,
 			log: slog.Default(),
+		})
+		s.SetAnimation(&animation.Fade{
+			Colour: color.RGBA{},
+			Timing: protocol.CameraFadeTimeData{
+				FadeInDuration:  0.25,
+				WaitDuration:    4.50,
+				FadeOutDuration: 0.25,
+			},
 		})
 	}
 }
