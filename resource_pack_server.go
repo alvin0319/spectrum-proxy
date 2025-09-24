@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/sandertv/gophertunnel/minecraft/resource"
 	"log/slog"
 	"net"
 	"net/http"
@@ -10,6 +9,8 @@ import (
 	"path"
 	"strings"
 	"sync"
+
+	"github.com/sandertv/gophertunnel/minecraft/resource"
 )
 
 // ResourcePackServer handles serving resource packs over HTTP

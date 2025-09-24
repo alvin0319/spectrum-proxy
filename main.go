@@ -1,31 +1,38 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"github.com/c-bata/go-prompt"
-	"github.com/cooldogedev/spectrum"
-	"github.com/cooldogedev/spectrum/server"
-	"github.com/cooldogedev/spectrum/session"
-	"github.com/cooldogedev/spectrum/session/animation"
-	"github.com/cooldogedev/spectrum/transport"
-	"github.com/cooldogedev/spectrum/util"
-	"github.com/lmittmann/tint"
-	"github.com/pelletier/go-toml"
-	"github.com/sandertv/gophertunnel/minecraft"
-	"github.com/sandertv/gophertunnel/minecraft/protocol"
-	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
-	"github.com/sandertv/gophertunnel/minecraft/resource"
 	"image/color"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"runtime"
 	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/c-bata/go-prompt"
+	"github.com/cooldogedev/spectrum"
+	"github.com/cooldogedev/spectrum/api"
+	"github.com/cooldogedev/spectrum/server"
+	"github.com/cooldogedev/spectrum/session"
+	"github.com/cooldogedev/spectrum/session/animation"
+	"github.com/cooldogedev/spectrum/transport"
+	"github.com/cooldogedev/spectrum/util"
+	"github.com/lmittmann/tint"
+	"github.com/oomph-ac/oconfig"
+	"github.com/oomph-ac/oomph"
+	"github.com/oomph-ac/oomph/player"
+	"github.com/pelletier/go-toml"
+	"github.com/sandertv/gophertunnel/minecraft"
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
+	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
+	"github.com/sandertv/gophertunnel/minecraft/resource"
 )
 
 // map of server addresses to their names.
@@ -54,6 +61,10 @@ type ServerConfig struct {
 	Debug bool `toml:"debug"`
 	// CdnConfig contains CDN configuration.
 	CdnConfig CdnConfig `toml:"cdn_config"`
+	// OomphEnabled indicates whether to enable Oomph Anticheat proxy.
+	OomphEnabled bool `toml:"oomph_enabled"`
+
+	APIServer APIServer `toml:"api_server"`
 }
 
 type Server struct {
@@ -67,6 +78,11 @@ type CdnConfig struct {
 	Port    int    `toml:"port"`
 }
 
+type APIServer struct {
+	BindAddr string `toml:"bind_addr"`
+	Token    string `toml:"token"`
+}
+
 // Discover returns the lobby server address for the player to connect to.
 func (l LobbyDiscovery) Discover(conn *minecraft.Conn) (string, error) {
 	return lobbyServerAddress, nil
@@ -77,9 +93,8 @@ func (l LobbyDiscovery) DiscoverFallback(conn *minecraft.Conn) (string, error) {
 	return lobbyServerAddress, nil
 }
 
-// LobbyProcessor implements session.Processor to handle server transfers while player is in the game.
-type LobbyProcessor struct {
-	// embedded session.NopProcessor to avoid implementing all methods.
+// TransferProcessor implements session.Processor to handle server transfers while player is in the game.
+type TransferProcessor struct {
 	session.NopProcessor
 	// s is the current session being processed.
 	s *session.Session
@@ -89,17 +104,18 @@ type LobbyProcessor struct {
 
 // ProcessServer is called when a packet is received from the server.
 // Canceling it will prevent the packet from being sent to the client.
-func (l *LobbyProcessor) ProcessServer(ctx *session.Context, pk *packet.Packet) {
+func (p *TransferProcessor) ProcessServer(ctx *session.Context, pk *packet.Packet) {
 	if t, ok := (*pk).(*packet.Transfer); ok {
 		addr := t.Address
 		if a, ok := serverMap[addr]; ok {
 			ctx.Cancel()
-			err := l.s.TransferTimeout(a, 10*time.Second)
+			err := p.s.TransferTimeout(a, 10*time.Second)
 			if err != nil {
-				l.log.Error("failed to transfer", "err", err, "address", addr)
-				l.s.CloseWithError(err)
+				p.log.Error("failed to transfer", "err", err, "address", addr)
+				p.s.CloseWithError(err)
 			}
 		}
+		return
 	}
 }
 
@@ -179,16 +195,51 @@ func main() {
 		logger.Info("Modified resource packs to use HTTP URLs")
 	}
 
+	var flushRate time.Duration
+	if conf.OomphEnabled {
+		flushRate = -1
+	} else {
+		flushRate = 20 / time.Second
+	}
+
+	var autoLogin = true
+	if conf.OomphEnabled {
+		autoLogin = false
+	}
+
+	oconfig.Global = oconfig.DefaultConfig
+	//oconfig.Global.Network.Transport = oconfig.NetworkTransportSpectral
+
+	oconfig.Global.Movement.AcceptClientPosition = false
+	oconfig.Global.Movement.PositionAcceptanceThreshold = 0.003
+	oconfig.Global.Movement.AcceptClientVelocity = false
+	oconfig.Global.Movement.VelocityAcceptanceThreshold = 0.077
+
+	oconfig.Global.Movement.PersuasionThreshold = 0.002
+	oconfig.Global.Movement.CorrectionThreshold = 0.003
+
+	oconfig.Global.Combat.MaximumAttackAngle = 90
+	oconfig.Global.Combat.EnableClientEntityTracking = true
+
+	oconfig.Global.Network.GlobalMovementCutoffThreshold = -1
+	oconfig.Global.Network.MaxEntityRewind = 6
+	oconfig.Global.Network.MaxGhostBlockChain = 7
+	oconfig.Global.Network.MaxKnockbackDelay = -1
+	oconfig.Global.Network.MaxBlockUpdateDelay = -1
+
 	proxy := spectrum.NewSpectrum(server.NewStaticDiscovery(lobbyServerAddress, lobbyServerAddress), logger, &util.Opts{
 		ShutdownMessage: conf.ShutdownMessage,
 		Addr:            conf.BindAddr,
-		AutoLogin:       true,
-		LatencyInterval: 3000,
+		AutoLogin:       autoLogin,
+		LatencyInterval: 1000,
+		ClientDecode:    player.ClientDecode,
+		SyncProtocol:    false,
 	}, transport.NewSpectral(logger))
 	if err := proxy.Listen(minecraft.ListenConfig{
 		StatusProvider:       util.NewStatusProvider(conf.Name, conf.Name),
 		TexturePacksRequired: len(packs) > 0,
 		ResourcePacks:        packs,
+		FlushRate:            flushRate,
 	}); err != nil {
 		return
 	}
@@ -204,33 +255,99 @@ func main() {
 		}
 	}
 
-	logger.Info("Starting spectrum proxy", "addr", proxy.Opts().Addr, "mc-version", protocol.CurrentVersion, "go-version", info.GoVersion, "commit", revision)
+	logger.Info("Starting spectrum proxy", "oomph-enabled", conf.OomphEnabled, "addr", proxy.Opts().Addr, "mc-version", protocol.CurrentVersion, "go-version", info.GoVersion, "commit", revision)
 
-	// Workaround for no terminal input on Linux (no windows support lol)
+	// Workaround for no terminal input on Linux
 	if runtime.GOOS == "linux" {
 		_, err := syscall.Open("/dev/tty", syscall.O_RDONLY, 0)
 		if err == nil {
 			go processCommand(proxy, conf)
+		} else {
+			go func() {
+				var interrupt = make(chan os.Signal, 1)
+				signal.Notify(interrupt, os.Interrupt)
+				<-interrupt
+				for _, s := range proxy.Registry().GetSessions() {
+					s.Server().WritePacket(&packet.Disconnect{})
+					s.Disconnect("Proxy restarting...")
+				}
+				time.Sleep(time.Second)
+				os.Exit(0)
+			}()
 		}
+	} else {
+		go processCommand(proxy, conf)
 	}
+
+	go func() {
+		a := api.NewAPI(proxy.Registry(), logger, api.NewSecretBasedAuthentication(conf.APIServer.Token))
+		if err := a.Listen(conf.APIServer.BindAddr); err != nil {
+			logger.Error("Error starting API server", "err", err)
+			return
+		}
+		logger.Info("Started API server", "bind-addr", conf.APIServer.BindAddr, "token", conf.APIServer.Token)
+		for {
+			_ = a.Accept()
+		}
+	}()
 
 	for {
 		s, err := proxy.Accept()
 		if err != nil {
 			continue
 		}
-		s.SetProcessor(&LobbyProcessor{
-			s:   s,
-			log: slog.Default(),
-		})
-		s.SetAnimation(&animation.Fade{
-			Colour: color.RGBA{},
-			Timing: protocol.CameraFadeTimeData{
-				FadeInDuration:  0.32,
-				WaitDuration:    0.84,
-				FadeOutDuration: 0.23,
-			},
-		})
+		if conf.OomphEnabled {
+			go func(s *session.Session) {
+				// Disable auto-login so that Oomph's processor can modify the StartGame data to allow server-authoritative movement.
+				f, err := os.OpenFile(fmt.Sprintf("./logs/%s.log", s.Client().IdentityData().DisplayName), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0744)
+				if err != nil {
+					s.Disconnect("failed to create log file")
+					return
+				}
+				playerLogHandler := slog.NewTextHandler(f, &slog.HandlerOptions{
+					Level: slog.LevelDebug,
+				})
+				playerLog := slog.New(playerLogHandler)
+				proc := oomph.NewProcessor(s, proxy.Registry(), proxy.Listener(), playerLog)
+				proc.Player().SetCloser(func() {
+					f.Close()
+				})
+				proc.Player().SetRecoverFunc(func(p *player.Player, err any) {
+					fmt.Println("ERROR:", err)
+					debug.PrintStack()
+					os.Exit(1)
+				})
+				proc.Player().AddPerm(player.PermissionDebug)
+				proc.Player().AddPerm(player.PermissionAlerts)
+				proc.Player().AddPerm(player.PermissionLogs)
+				proc.Player().HandleEvents(player.NewExampleEventHandler())
+				s.SetProcessor(proc)
+
+				if err := s.LoginTimeout(10 * time.Second); err != nil {
+					s.Disconnect(err.Error())
+					f.Close()
+					if !errors.Is(err, context.Canceled) {
+						logger.Error("failed to login session", "err", err)
+					}
+					return
+				}
+
+				proc.Player().SetServerConn(s.Server())
+			}(s)
+		} else {
+			s.SetProcessor(&TransferProcessor{
+				s:   s,
+				log: slog.Default(),
+			})
+			s.SetAnimation(&animation.Fade{
+				Colour: color.RGBA{},
+				Timing: protocol.CameraFadeTimeData{
+					FadeInDuration:  0.32,
+					WaitDuration:    0.84,
+					FadeOutDuration: 0.23,
+				},
+			})
+		}
 	}
 }
 
@@ -413,6 +530,11 @@ func readConfig() (*ServerConfig, error) {
 			Ip:      "0.0.0.0",
 			Port:    8080,
 		},
+		OomphEnabled: false,
+		APIServer: APIServer{
+			BindAddr: "127.0.0.1:19132",
+			Token:    "",
+		},
 	}
 	if _, err := os.Stat("config.toml"); err == nil {
 		data, err := os.ReadFile("config.toml")
@@ -471,4 +593,4 @@ func parse(keys map[string]string, logger *slog.Logger) ([]*resource.Pack, error
 }
 
 var _ server.Discovery = &LobbyDiscovery{}
-var _ session.Processor = &LobbyProcessor{}
+var _ session.Processor = &TransferProcessor{}

@@ -2,3 +2,6 @@ resource_packs
 config.toml
 spectrum-proxy
 .idea
+./oomph/
+./dragonfly
+./logs/
