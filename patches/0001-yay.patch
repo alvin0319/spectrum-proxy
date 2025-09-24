@@ -1,0 +1,509 @@
+From 07cd6d07c189be4a887a67b286882bc4288c544f Mon Sep 17 00:00:00 2001
+From: alvin0319 <alvin7810@naver.com>
+Date: Sun, 21 Sep 2025 23:44:54 +0900
+Subject: [PATCH] yay
+
+---
+ example/default/default.go | 220 -------------------------------------
+ go.mod                     |  45 ++++----
+ go.sum                     |  46 +++++++-
+ player/player.go           |   2 +-
+ 4 files changed, 68 insertions(+), 245 deletions(-)
+ delete mode 100644 example/default/default.go
+
+diff --git a/example/default/default.go b/example/default/default.go
+deleted file mode 100644
+index 6606fda..0000000
+--- a/example/default/default.go
++++ /dev/null
+@@ -1,220 +0,0 @@
+-package main
+-
+-import (
+-	"errors"
+-	"fmt"
+-	"log/slog"
+-	"os"
+-	"sync"
+-	"time"
+-
+-	v589 "github.com/oomph-ac/multiversion/multiversion/protocols/1_20/v589"
+-	v594 "github.com/oomph-ac/multiversion/multiversion/protocols/1_20/v594"
+-	v618 "github.com/oomph-ac/multiversion/multiversion/protocols/1_20/v618"
+-	v622 "github.com/oomph-ac/multiversion/multiversion/protocols/1_20/v622"
+-	v630 "github.com/oomph-ac/multiversion/multiversion/protocols/1_20/v630"
+-	v649 "github.com/oomph-ac/multiversion/multiversion/protocols/1_20/v649"
+-	v662 "github.com/oomph-ac/multiversion/multiversion/protocols/1_20/v662"
+-	v671 "github.com/oomph-ac/multiversion/multiversion/protocols/1_20/v671"
+-	v686 "github.com/oomph-ac/multiversion/multiversion/protocols/1_21/v686"
+-	v712 "github.com/oomph-ac/multiversion/multiversion/protocols/1_21/v712"
+-	v729 "github.com/oomph-ac/multiversion/multiversion/protocols/1_21/v729"
+-	v748 "github.com/oomph-ac/multiversion/multiversion/protocols/1_21/v748"
+-	v766 "github.com/oomph-ac/multiversion/multiversion/protocols/1_21/v766"
+-	v776 "github.com/oomph-ac/multiversion/multiversion/protocols/1_21/v776"
+-	_ "github.com/oomph-ac/oomph"
+-	"github.com/oomph-ac/oomph/player"
+-	"github.com/oomph-ac/oomph/player/component"
+-	"github.com/oomph-ac/oomph/player/context"
+-	"github.com/oomph-ac/oomph/player/detection"
+-	"github.com/sandertv/gophertunnel/minecraft"
+-
+-	"github.com/go-echarts/statsview"
+-	"github.com/go-echarts/statsview/viewer"
+-)
+-
+-var (
+-	localPort  string
+-	remoteAddr string
+-)
+-
+-// The following program implements a proxy that forwards players from one local address to a remote address.
+-func main() {
+-	if len(os.Args) < 3 {
+-		fmt.Println("Usage: ./bin <local_port> <remote_addr>")
+-		return
+-	}
+-
+-	localPort, remoteAddr = os.Args[1], os.Args[2]
+-	p, err := minecraft.NewForeignStatusProvider(remoteAddr)
+-	if err != nil {
+-		panic(err)
+-	}
+-	listener, err := minecraft.ListenConfig{
+-		StatusProvider:      p,
+-		FlushRate:           -1,
+-		AllowUnknownPackets: true,
+-		AllowInvalidPackets: true,
+-
+-		AcceptedProtocols: []minecraft.Protocol{
+-			v776.Protocol(),
+-			v766.Protocol(),
+-			v748.Protocol(),
+-			v729.Protocol(),
+-			v712.Protocol(),
+-			v686.Protocol1(),
+-			v686.Protocol2(),
+-			v671.Protocol(),
+-			v662.Protocol(),
+-			v649.Protocol(),
+-			v630.Protocol(),
+-			v622.Protocol(),
+-			v618.Protocol(),
+-			v594.Protocol(),
+-			v589.Protocol(),
+-		},
+-	}.Listen("raknet", ":"+localPort)
+-	if err != nil {
+-		panic(err)
+-	}
+-	defer listener.Close()
+-
+-	if os.Getenv("PPROF_ENABLED") != "" {
+-		// set configurations before calling `statsview.New()` method
+-		viewer.SetConfiguration(viewer.WithTheme(viewer.ThemeWesteros), viewer.WithAddr("localhost:8080"))
+-
+-		mgr := statsview.New()
+-		go mgr.Start()
+-		//go http.ListenAndServe("localhost:8080", nil)
+-	}
+-
+-	for {
+-		c, err := listener.Accept()
+-		if err != nil {
+-			panic(err)
+-		}
+-		go handleConn(c.(*minecraft.Conn), listener)
+-	}
+-}
+-
+-// handleConn handles a new incoming minecraft.Conn from the minecraft.Listener passed.
+-func handleConn(conn *minecraft.Conn, listener *minecraft.Listener) {
+-	clientDat := conn.ClientData()
+-	clientDat.ThirdPartyName = conn.IdentityData().DisplayName
+-
+-	serverConn, err := minecraft.Dialer{
+-		ClientData:   clientDat,
+-		IdentityData: conn.IdentityData(),
+-		FlushRate:    -1,
+-	}.Dial("raknet", remoteAddr)
+-	if err != nil {
+-		panic(err)
+-	}
+-
+-	f, err := os.OpenFile(fmt.Sprintf("./logs/%s.log", conn.IdentityData().DisplayName), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+-	if err != nil {
+-		panic(err)
+-	}
+-
+-	// Create a TextHandler that writes to the file
+-	handler := slog.NewTextHandler(f, &slog.HandlerOptions{
+-		Level: slog.LevelInfo,
+-	})
+-	logger := slog.New(handler)
+-	p := player.New(logger, player.MonitoringState{
+-		IsReplay:    false,
+-		IsRecording: false,
+-		CurrentTime: time.Now(),
+-	}, listener)
+-	component.Register(p)
+-	detection.Register(p)
+-	p.SetConn(conn)
+-	defer p.Close()
+-
+-	var g sync.WaitGroup
+-	g.Add(2)
+-	go func() {
+-		gameData := serverConn.GameData()
+-		//gameData.PlayerMovementSettings.MovementType = protocol.PlayerMovementModeServerWithRewind
+-		gameData.PlayerMovementSettings.RewindHistorySize = 100
+-		if err := conn.StartGame(gameData); err != nil {
+-			panic(err)
+-		}
+-		g.Done()
+-	}()
+-	go func() {
+-		if err := serverConn.DoSpawn(); err != nil {
+-			panic(err)
+-		}
+-		g.Done()
+-	}()
+-	g.Wait()
+-
+-	p.SetServerConn(serverConn)
+-	go p.StartTicking()
+-
+-	completion := make(chan struct{}, 1)
+-	go func() {
+-		defer listener.Disconnect(conn, "connection lost")
+-		defer serverConn.Close()
+-		defer func() {
+-			completion <- struct{}{}
+-		}()
+-
+-		for {
+-			pk, err := conn.ReadPacket()
+-			if err != nil {
+-				return
+-			}
+-
+-			/* switch pk := pk.(type) {
+-			case *packet.PlayerAuthInput, *packet.NetworkStackLatency:
+-			default:
+-				fmt.Printf("Client -> Server: %T\n", pk)
+-			} */
+-			pkCtx := context.NewHandlePacketContext(&pk)
+-			p.HandleClientPacket(pkCtx)
+-			if pkCtx.Cancelled() {
+-				continue
+-			}
+-
+-			if err := serverConn.WritePacket(pk); err != nil {
+-				var disc minecraft.DisconnectError
+-				if ok := errors.As(err, &disc); ok {
+-					fmt.Println(err, "Client -> Server")
+-					_ = listener.Disconnect(conn, disc.Error())
+-				}
+-				return
+-			}
+-		}
+-	}()
+-	go func() {
+-		defer serverConn.Close()
+-		defer listener.Disconnect(conn, "connection lost")
+-		defer func() {
+-			completion <- struct{}{}
+-		}()
+-
+-		for {
+-			pk, err := serverConn.ReadPacket()
+-			if err != nil {
+-				var disc minecraft.DisconnectError
+-				if ok := errors.As(err, &disc); ok {
+-					fmt.Println(err, "Server -> Client")
+-					_ = listener.Disconnect(conn, disc.Error())
+-				}
+-				return
+-			}
+-
+-			pkCtx := context.NewHandlePacketContext(&pk)
+-			p.HandleServerPacket(pkCtx)
+-			if !pkCtx.Cancelled() {
+-				if err := conn.WritePacket(pk); err != nil {
+-					return
+-				}
+-			}
+-		}
+-	}()
+-	<-completion
+-	fmt.Println("Connection closed.")
+-}
+diff --git a/go.mod b/go.mod
+index fb6c463..b99e267 100755
+--- a/go.mod
++++ b/go.mod
+@@ -5,19 +5,18 @@ go 1.24.1
+ require (
+ 	github.com/akmalfairuz/legacy-version v1.5.4
+ 	github.com/chewxy/math32 v1.10.1
+-	github.com/cooldogedev/spectrum v0.0.40-0.20250527034552-55ddfe1bba67
++	github.com/cooldogedev/spectrum v0.0.43
+ 	github.com/df-mc/dragonfly v0.10.6-0.20250708145727-07da2e859609
+ 	github.com/elliotchance/orderedmap/v2 v2.2.0
+ 	github.com/ethaniccc/float32-cube v0.0.0-20250511224129-7af1f8c4ee12
+ 	github.com/getsentry/sentry-go v0.27.0
+ 	github.com/go-echarts/statsview v0.4.2
+ 	github.com/go-gl/mathgl v1.2.0
+-	github.com/oomph-ac/multiversion v0.0.0-20250311011509-e9c78bda67c1
+-	github.com/oomph-ac/oconfig v0.0.0-20250315200330-e36f34d634e5
++	github.com/oomph-ac/oconfig v0.0.0-20250912013507-a80d378a6595
+ 	github.com/sandertv/go-raknet v1.14.3-0.20250305181847-6af3e95113d6
+ 	github.com/sandertv/gophertunnel v1.49.0
+ 	github.com/zeebo/xxh3 v1.0.2
+-	golang.org/x/exp v0.0.0-20250711185948-6ae5c78190dc
++	golang.org/x/exp v0.0.0-20250911091902-df9299821621
+ )
+ 
+ require (
+@@ -28,44 +27,46 @@ require (
+ 	github.com/df-mc/worldupgrader v1.0.19 // indirect
+ 	github.com/francoispqt/gojay v1.2.13 // indirect
+ 	github.com/go-echarts/go-echarts/v2 v2.5.1 // indirect
+-	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
++	github.com/go-jose/go-jose/v4 v4.1.2 // indirect
+ 	github.com/golang/snappy v1.0.0 // indirect
++	github.com/google/go-cmp v0.7.0 // indirect
+ 	github.com/google/uuid v1.6.0 // indirect
+-	github.com/hjson/hjson-go/v4 v4.4.0 // indirect
++	github.com/hjson/hjson-go/v4 v4.5.0 // indirect
+ 	github.com/klauspost/compress v1.18.0 // indirect
+ 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
+ 	github.com/muhammadmuzzammil1998/jsonc v1.0.0 // indirect
+ 	github.com/onsi/gomega v1.36.3 // indirect
+-	github.com/quic-go/quic-go v0.53.0 // indirect
++	github.com/pelletier/go-toml v1.9.5 // indirect
++	github.com/quic-go/quic-go v0.54.0 // indirect
+ 	github.com/rs/cors v1.11.0 // indirect
+ 	github.com/samber/lo v1.49.1 // indirect
+ 	github.com/scylladb/go-set v1.0.2 // indirect
+ 	github.com/segmentio/fasthash v1.0.3 // indirect
+-	go.uber.org/mock v0.5.2 // indirect
+-	golang.org/x/crypto v0.41.0 // indirect
+-	golang.org/x/mod v0.26.0 // indirect
+-	golang.org/x/net v0.43.0 // indirect
+-	golang.org/x/oauth2 v0.30.0 // indirect
+-	golang.org/x/sync v0.16.0 // indirect
+-	golang.org/x/sys v0.35.0 // indirect
+-	golang.org/x/text v0.28.0 // indirect
+-	golang.org/x/tools v0.35.0 // indirect
++	go.uber.org/mock v0.6.0 // indirect
++	golang.org/x/crypto v0.42.0 // indirect
++	golang.org/x/mod v0.28.0 // indirect
++	golang.org/x/net v0.44.0 // indirect
++	golang.org/x/oauth2 v0.31.0 // indirect
++	golang.org/x/sync v0.17.0 // indirect
++	golang.org/x/sys v0.36.0 // indirect
++	golang.org/x/text v0.29.0 // indirect
++	golang.org/x/tools v0.37.0 // indirect
+ )
+ 
+ //replace github.com/sandertv/go-raknet => github.com/tedacmc/tedac-raknet v0.0.4
+ 
+ //replace github.com/sandertv/gophertunnel => ../tedac-gophertunnel
+ 
+-replace github.com/sandertv/go-raknet => ../go-raknet
++//replace github.com/sandertv/go-raknet => ../go-raknet
+ 
+-replace github.com/sandertv/gophertunnel => ../gophertunnel
++//replace github.com/sandertv/gophertunnel => ../gophertunnel
+ 
+ replace github.com/df-mc/dragonfly => ../dragonfly
+ 
+-replace github.com/cooldogedev/spectrum => ../spectrum
++//replace github.com/cooldogedev/spectrum => ../spectrum
+ 
+-replace github.com/oomph-ac/oconfig => ../oconfig
++//replace github.com/oomph-ac/oconfig => ../oconfig
+ 
+-replace github.com/oomph-ac/multiversion => ../multiversion
++//replace github.com/oomph-ac/multiversion => ../multiversion
+ 
+-replace github.com/akmalfairuz/legacy-version => ../legacy-version
++//replace github.com/akmalfairuz/legacy-version => ../legacy-version
+diff --git a/go.sum b/go.sum
+index 1ea7805..544eee3 100755
+--- a/go.sum
++++ b/go.sum
+@@ -8,6 +8,8 @@ dmitri.shuralyov.com/service/change v0.0.0-20181023043359-a85b471d5412/go.mod h1
+ dmitri.shuralyov.com/state v0.0.0-20180228185332-28bcc343414c/go.mod h1:0PRwlb0D6DFvNNtx+9ybjezNCa8XF0xaYcETyp6rHWU=
+ git.apache.org/thrift.git v0.0.0-20180902110319-2566ecd5d999/go.mod h1:fPE2ZNJGynbRyZ4dJvy6G277gSllfV2HJqblrnkyeyg=
+ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
++github.com/akmalfairuz/legacy-version v1.5.4 h1:ICzMgFuQYzEPHaUQsFmc2ab5KjAhBeM9q2YjgMcSGW4=
++github.com/akmalfairuz/legacy-version v1.5.4/go.mod h1:ZWhMKMZZf23E/SUz/3AKWMJ/gpXSwijA2AXMEeExY5c=
+ github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
+ github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
+ github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBTaaSFSlLx/70C2HPIMNZpVV8+vt/A+FMnYP11g=
+@@ -21,10 +23,16 @@ github.com/chewxy/math32 v1.10.1/go.mod h1:dOB2rcuFrCn6UHrze36WSLVPKtzPMRAQvBvUw
+ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
+ github.com/cooldogedev/spectral v0.0.5 h1:VTWbJkqwDqg/eeDwIXwC6+jpXEGlOzu6QzP1hSEUhIM=
+ github.com/cooldogedev/spectral v0.0.5/go.mod h1:Oq9dVLgqaRiS/hZvKvLk/XWXFOZmmTKM29u6o4GBe84=
++github.com/cooldogedev/spectrum v0.0.40-0.20250527034552-55ddfe1bba67 h1:eCxwhcFAQP2TR5+uPhr/Yh6ucVvcgpotm1lVuRKivUI=
++github.com/cooldogedev/spectrum v0.0.40-0.20250527034552-55ddfe1bba67/go.mod h1:N4OqsCQvKJPhf8XertG+JHiP2RPfxvneiWiR9KLyVMo=
++github.com/cooldogedev/spectrum v0.0.43 h1:of6xGfP8hCtyLxvH7No7JSl54wVdlXMeVsOuR0fb/wU=
++github.com/cooldogedev/spectrum v0.0.43/go.mod h1:VUxAGnSeet4a1fyigA7NpQvu8x79rgrpISgdUtQ5Dpw=
+ github.com/coreos/go-systemd v0.0.0-20181012123002-c6f51f82210d/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
+ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
+ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
++github.com/df-mc/dragonfly v0.10.6-0.20250708145727-07da2e859609 h1:oC+BAenjf8gC71QBzFJTKWurUjPRmwvZ+fo7QBGdbkA=
++github.com/df-mc/dragonfly v0.10.6-0.20250708145727-07da2e859609/go.mod h1:v3u0LqIbIgVCkM76yUUalW3ZqB05LI9llXcSiBkSwOQ=
+ github.com/df-mc/goleveldb v1.1.9 h1:ihdosZyy5jkQKrxucTQmN90jq/2lUwQnJZjIYIC/9YU=
+ github.com/df-mc/goleveldb v1.1.9/go.mod h1:+NHCup03Sci5q84APIA21z3iPZCuk6m6ABtg4nANCSk=
+ github.com/df-mc/worldupgrader v1.0.19 h1:BnwRe/lVv9IhwRWZK5olvTYNTKWh7rhFdqNPDMnoKFM=
+@@ -56,6 +64,8 @@ github.com/go-gl/mathgl v1.2.0 h1:v2eOj/y1B2afDxF6URV1qCYmo1KW08lAMtTbOn3KXCY=
+ github.com/go-gl/mathgl v1.2.0/go.mod h1:pf9+b5J3LFP7iZ4XXaVzZrCle0Q/vNpB/vDe5+3ulRE=
+ github.com/go-jose/go-jose/v4 v4.1.1 h1:JYhSgy4mXXzAdF3nUx3ygx347LRXJRrpgyU3adRmkAI=
+ github.com/go-jose/go-jose/v4 v4.1.1/go.mod h1:BdsZGqgdO3b6tTc6LSE56wcDbMMLuPsw5d4ZD5f94kA=
++github.com/go-jose/go-jose/v4 v4.1.2 h1:TK/7NqRQZfgAh+Td8AlsrvtPoUyiHh0LqVvokh+1vHI=
++github.com/go-jose/go-jose/v4 v4.1.2/go.mod h1:22cg9HWM1pOlnRiY+9cQYJ9XHmya1bYW8OeDM6Ku6Oo=
+ github.com/gogo/protobuf v1.1.1/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
+ github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
+ github.com/golang/lint v0.0.0-20180702182130-06c8688daad7/go.mod h1:tluoj9z5200jBnyusfRPU2LqT6J+DAorxEvtC7LHB+E=
+@@ -81,8 +91,8 @@ github.com/googleapis/gax-go/v2 v2.0.3/go.mod h1:LLvjysVCY1JZeum8Z6l8qUty8fiNwE0
+ github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
+ github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
+ github.com/grpc-ecosystem/grpc-gateway v1.5.0/go.mod h1:RSKVYQBd5MCa4OVpNdGskqpgL2+G+NZTnrVHpWWfpdw=
+-github.com/hjson/hjson-go/v4 v4.4.0 h1:D/NPvqOCH6/eisTb5/ztuIS8GUvmpHaLOcNk1Bjr298=
+-github.com/hjson/hjson-go/v4 v4.4.0/go.mod h1:KaYt3bTw3zhBjYqnXkYywcYctk0A2nxeEFTse3rH13E=
++github.com/hjson/hjson-go/v4 v4.5.0 h1:ZHLiZ+HaGqPOtEe8T6qY8QHnoEsAeBv8wqxniQAp+CY=
++github.com/hjson/hjson-go/v4 v4.5.0/go.mod h1:4zx6c7Y0vWcm8IRyVoQJUHAPJLXLvbG6X8nk1RLigSo=
+ github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
+ github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
+ github.com/jellevandenhooff/dkim v0.0.0-20150330215556-f50fe3d243e1/go.mod h1:E0B/fFc00Y+Rasa88328GlI/XbtyysCtTHZS8h7IrBU=
+@@ -114,7 +124,13 @@ github.com/onsi/ginkgo v1.7.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+W
+ github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
+ github.com/onsi/gomega v1.36.3 h1:hID7cr8t3Wp26+cYnfcjR6HpJ00fdogN6dqZ1t6IylU=
+ github.com/onsi/gomega v1.36.3/go.mod h1:8D9+Txp43QWKhM24yyOBEdpkzN8FvJyAwecBgsU4KU0=
++github.com/oomph-ac/oconfig v0.0.0-20250315200330-e36f34d634e5 h1:3KeM9xeR7UNwaSMYK8jka77wsLIEygMql3rCyr/S+3Y=
++github.com/oomph-ac/oconfig v0.0.0-20250315200330-e36f34d634e5/go.mod h1:P72gajWX7dlQjcA6pjZNNyfndDQsE8zwhbaa18tX+x8=
++github.com/oomph-ac/oconfig v0.0.0-20250912013507-a80d378a6595 h1:wlvyyTVOURdjkmdTrPfUUHn8sm+cC4FGUE1It5Dcba8=
++github.com/oomph-ac/oconfig v0.0.0-20250912013507-a80d378a6595/go.mod h1:2hkIOpKyeO2X0YhZ3puE+9CjvFiLsSKRz2RwCPDw5ho=
+ github.com/openzipkin/zipkin-go v0.1.1/go.mod h1:NtoC/o8u3JlF1lSlyPNswIbeQH9bJTmOf0Erfk+hxe8=
++github.com/pelletier/go-toml v1.9.5 h1:4yBQzkHv+7BHq2PQUZF3Mx0IYxG7LsP222s7Agd3ve8=
++github.com/pelletier/go-toml v1.9.5/go.mod h1:u1nR/EPcESfeI/szUZKdtJ0xRNbUoANCkoOuaOx1Y+c=
+ github.com/pingcap/errors v0.11.4 h1:lFuQV/oaUMGcD2tqt+01ROSmJs75VG1ToEOkZIZ4nE4=
+ github.com/pingcap/errors v0.11.4/go.mod h1:Oi8TUi2kEtXXLMJk9l1cGmz20kV3TaQ0usTwv5KuLY8=
+ github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+@@ -128,11 +144,17 @@ github.com/prometheus/common v0.0.0-20180801064454-c7de2306084e/go.mod h1:daVV7q
+ github.com/prometheus/procfs v0.0.0-20180725123919-05ee40e3a273/go.mod h1:c3At6R/oaqEKCNdg8wHV1ftS6bRYblBhIjjI8uT2IGk=
+ github.com/quic-go/quic-go v0.53.0 h1:QHX46sISpG2S03dPeZBgVIZp8dGagIaiu2FiVYvpCZI=
+ github.com/quic-go/quic-go v0.53.0/go.mod h1:e68ZEaCdyviluZmy44P6Iey98v/Wfz6HCjQEm+l8zTY=
++github.com/quic-go/quic-go v0.54.0 h1:6s1YB9QotYI6Ospeiguknbp2Znb/jZYjZLRXn9kMQBg=
++github.com/quic-go/quic-go v0.54.0/go.mod h1:e68ZEaCdyviluZmy44P6Iey98v/Wfz6HCjQEm+l8zTY=
+ github.com/rs/cors v1.11.0 h1:0B9GE/r9Bc2UxRMMtymBkHTenPkHDv0CW4Y98GBY+po=
+ github.com/rs/cors v1.11.0/go.mod h1:XyqrcTp5zjWr1wsJ8PIRZssZ8b/WMcMf71DJnit4EMU=
+ github.com/russross/blackfriday v1.5.2/go.mod h1:JO/DiYxRf+HjHt06OyowR9PTA263kcR/rfWxYHBV53g=
+ github.com/samber/lo v1.49.1 h1:4BIFyVfuQSEpluc7Fua+j1NolZHiEHEpaSEKdsH0tew=
+ github.com/samber/lo v1.49.1/go.mod h1:dO6KHFzUKXgP8LDhU0oI8d2hekjXnGOu0DB8Jecxd6o=
++github.com/sandertv/go-raknet v1.14.3-0.20250305181847-6af3e95113d6 h1:ZfK7NCzIDE+dzp5x6NIO4JDLsjsOxi762CNR1Obds2Q=
++github.com/sandertv/go-raknet v1.14.3-0.20250305181847-6af3e95113d6/go.mod h1:/yysjwfCXm2+2OY8mBazLzcxJ3irnylKCyG3FLgUPVU=
++github.com/sandertv/gophertunnel v1.49.0 h1:9FIl4GGYMrFTmBPgkOTUskGWRQHIg4NMpY8JdM6SrCg=
++github.com/sandertv/gophertunnel v1.49.0/go.mod h1:lmRarAmn25V/+QeiUbUDXeA26bEaNlX1wGEM/rj39ew=
+ github.com/scylladb/go-set v1.0.2 h1:SkvlMCKhP0wyyct6j+0IHJkBkSZL+TDzZ4E7f7BCcRE=
+ github.com/scylladb/go-set v1.0.2/go.mod h1:DkpGd78rljTxKAnTDPFqXSGxvETQnJyuSOQwsHycqfs=
+ github.com/segmentio/fasthash v1.0.3 h1:EI9+KE1EwvMLBWwjpRDc+fEM+prwxDYbslddQGtrmhM=
+@@ -177,6 +199,8 @@ github.com/zeebo/xxh3 v1.0.2/go.mod h1:5NWz9Sef7zIDm2JHfFlcQvNekmcEl9ekUZQQKCYaD
+ go.opencensus.io v0.18.0/go.mod h1:vKdFvxhtzZ9onBp9VKHK8z/sRpBMnKAsufL7wlDrCOA=
+ go.uber.org/mock v0.5.2 h1:LbtPTcP8A5k9WPXj54PPPbjcI4Y6lhyOZXn+VS7wNko=
+ go.uber.org/mock v0.5.2/go.mod h1:wLlUxC2vVTPTaE3UD51E0BGOAElKrILxhVSDYQLld5o=
++go.uber.org/mock v0.6.0 h1:hyF9dfmbgIX5EfOdasqLsWD6xqpNZlXblLB/Dbnwv3Y=
++go.uber.org/mock v0.6.0/go.mod h1:KiVJ4BqZJaMj4svdfmHM0AUx4NJYO8ZNpPnZn1Z+BBU=
+ go4.org v0.0.0-20180809161055-417644f6feb5/go.mod h1:MkTOUMDaeVYJUOUsaDXIhWPZYa1yOyC1qaOBpL57BhE=
+ golang.org/x/build v0.0.0-20190111050920-041ab4dc3f9d/go.mod h1:OWs+y06UdEOHN4y+MfF/py+xQ/tYqIWW03b70/CG9Rw=
+ golang.org/x/crypto v0.0.0-20181030102418-4d3f4d9ffa16/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
+@@ -184,14 +208,20 @@ golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACk
+ golang.org/x/crypto v0.0.0-20190313024323-a1f597ede03a/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
+ golang.org/x/crypto v0.41.0 h1:WKYxWedPGCTVVl5+WHSSrOBT0O8lx32+zxmHxijgXp4=
+ golang.org/x/crypto v0.41.0/go.mod h1:pO5AFd7FA68rFak7rOAGVuygIISepHftHnr8dr6+sUc=
++golang.org/x/crypto v0.42.0 h1:chiH31gIWm57EkTXpwnqf8qeuMUi0yekh6mT2AvFlqI=
++golang.org/x/crypto v0.42.0/go.mod h1:4+rDnOTJhQCx2q7/j6rAN5XDw8kPjeaXEUR2eL94ix8=
+ golang.org/x/exp v0.0.0-20190121172915-509febef88a4/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
+ golang.org/x/exp v0.0.0-20250711185948-6ae5c78190dc h1:TS73t7x3KarrNd5qAipmspBDS1rkMcgVG/fS1aRb4Rc=
+ golang.org/x/exp v0.0.0-20250711185948-6ae5c78190dc/go.mod h1:A+z0yzpGtvnG90cToK5n2tu8UJVP2XUATh+r+sfOOOc=
++golang.org/x/exp v0.0.0-20250911091902-df9299821621 h1:2id6c1/gto0kaHYyrixvknJ8tUK/Qs5IsmBtrc+FtgU=
++golang.org/x/exp v0.0.0-20250911091902-df9299821621/go.mod h1:TwQYMMnGpvZyc+JpB/UAuTNIsVJifOlSkrZkhcvpVUk=
+ golang.org/x/lint v0.0.0-20180702182130-06c8688daad7/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=
+ golang.org/x/lint v0.0.0-20181026193005-c67002cb31c3/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=
+ golang.org/x/lint v0.0.0-20190227174305-5b3e6a55c961/go.mod h1:wehouNa3lNwaWXcvxsM5YxQ5yQlVC4a0KAMCusXpPoU=
+ golang.org/x/mod v0.26.0 h1:EGMPT//Ezu+ylkCijjPc+f4Aih7sZvaAr+O3EHBxvZg=
+ golang.org/x/mod v0.26.0/go.mod h1:/j6NAhSk8iQ723BGAUyoAcn7SlD7s15Dp9Nd/SfeaFQ=
++golang.org/x/mod v0.28.0 h1:gQBtGhjxykdjY9YhZpSlZIsbnaE2+PgjfLWUQTnoZ1U=
++golang.org/x/mod v0.28.0/go.mod h1:yfB/L0NOf/kmEbXjzCPOx1iK1fRutOydrCMsqRhEBxI=
+ golang.org/x/net v0.0.0-20180724234803-3673e40ba225/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
+ golang.org/x/net v0.0.0-20180826012351-8a410e7b638d/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
+ golang.org/x/net v0.0.0-20180906233101-161cd47e91fd/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
+@@ -202,12 +232,16 @@ golang.org/x/net v0.0.0-20190213061140-3a22650c66bd/go.mod h1:mL1N/T3taQHkDXs73r
+ golang.org/x/net v0.0.0-20190313220215-9f648a60d977/go.mod h1:t9HGtf8HONx5eT2rtn7q6eTqICYqUVnKs3thJo3Qplg=
+ golang.org/x/net v0.43.0 h1:lat02VYK2j4aLzMzecihNvTlJNQUq316m2Mr9rnM6YE=
+ golang.org/x/net v0.43.0/go.mod h1:vhO1fvI4dGsIjh73sWfUVjj3N7CA9WkKJNQm2svM6Jg=
++golang.org/x/net v0.44.0 h1:evd8IRDyfNBMBTTY5XRF1vaZlD+EmWx6x8PkhR04H/I=
++golang.org/x/net v0.44.0/go.mod h1:ECOoLqd5U3Lhyeyo/QDCEVQ4sNgYsqvCZ722XogGieY=
+ golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
+ golang.org/x/oauth2 v0.0.0-20181017192945-9dcd33a902f4/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
+ golang.org/x/oauth2 v0.0.0-20181203162652-d668ce993890/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
+ golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
+ golang.org/x/oauth2 v0.30.0 h1:dnDm7JmhM45NNpd8FDDeLhK6FwqbOf4MLCM9zb1BOHI=
+ golang.org/x/oauth2 v0.30.0/go.mod h1:B++QgG3ZKulg6sRPGD/mqlHQs5rB3Ml9erfeDY7xKlU=
++golang.org/x/oauth2 v0.31.0 h1:8Fq0yVZLh4j4YA47vHKFTa9Ew5XIrCP8LC6UeNZnLxo=
++golang.org/x/oauth2 v0.31.0/go.mod h1:lzm5WQJQwKZ3nwavOZ3IS5Aulzxi68dUSgRHujetwEA=
+ golang.org/x/perf v0.0.0-20180704124530-6e6d33e29852/go.mod h1:JLpeXjPJfIyPr5TlbXLkXWLhP8nz10XfvxElABhCtcw=
+ golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
+ golang.org/x/sync v0.0.0-20181108010431-42b317875d0f/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
+@@ -215,6 +249,8 @@ golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4/go.mod h1:RxMgew5VJxzue5/jJ
+ golang.org/x/sync v0.0.0-20190227155943-e225da77a7e6/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
+ golang.org/x/sync v0.16.0 h1:ycBJEhp9p4vXvUZNszeOq0kGTPghopOL8q0fq3vstxw=
+ golang.org/x/sync v0.16.0/go.mod h1:1dzgHSNfp02xaA81J2MS99Qcpr2w7fw1gpm99rleRqA=
++golang.org/x/sync v0.17.0 h1:l60nONMj9l5drqw6jlhIELNv9I0A4OFgRsG9k2oT9Ug=
++golang.org/x/sync v0.17.0/go.mod h1:9KTHXmSnoGruLpwFjVSX0lNNA75CykiMECbovNTZqGI=
+ golang.org/x/sys v0.0.0-20180830151530-49385e6e1522/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+ golang.org/x/sys v0.0.0-20180909124046-d0be0721c37e/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+ golang.org/x/sys v0.0.0-20181029174526-d69651ed3497/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+@@ -222,10 +258,14 @@ golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5h
+ golang.org/x/sys v0.0.0-20190316082340-a2f829d7f35f/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+ golang.org/x/sys v0.35.0 h1:vz1N37gP5bs89s7He8XuIYXpyY0+QlsKmzipCbUtyxI=
+ golang.org/x/sys v0.35.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=
++golang.org/x/sys v0.36.0 h1:KVRy2GtZBrk1cBYA7MKu5bEZFxQk4NIDV6RLVcC8o0k=
++golang.org/x/sys v0.36.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
+ golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+ golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+ golang.org/x/text v0.28.0 h1:rhazDwis8INMIwQ4tpjLDzUhx6RlXqZNPEM0huQojng=
+ golang.org/x/text v0.28.0/go.mod h1:U8nCwOR8jO/marOQ0QbDiOngZVEBB7MAiitBuMjXiNU=
++golang.org/x/text v0.29.0 h1:1neNs90w9YzJ9BocxfsQNHKuAT4pkghyXc4nhZ6sJvk=
++golang.org/x/text v0.29.0/go.mod h1:7MhJOA9CD2qZyOKYazxdYMF85OwPdEr9jTtBpO7ydH4=
+ golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
+ golang.org/x/time v0.0.0-20181108054448-85acf8d2951c/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
+ golang.org/x/tools v0.0.0-20180828015842-6cd1fcedba52/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
+@@ -234,6 +274,8 @@ golang.org/x/tools v0.0.0-20190114222345-bf090417da8b/go.mod h1:n7NCudcB/nEzxVGm
+ golang.org/x/tools v0.0.0-20190226205152-f727befe758c/go.mod h1:9Yl7xja0Znq3iFh3HoIrodX9oNMXvdceNzlUR8zjMvY=
+ golang.org/x/tools v0.35.0 h1:mBffYraMEf7aa0sB+NuKnuCy8qI/9Bughn8dC2Gu5r0=
+ golang.org/x/tools v0.35.0/go.mod h1:NKdj5HkL/73byiZSJjqJgKn3ep7KjFkBOkR/Hps3VPw=
++golang.org/x/tools v0.37.0 h1:DVSRzp7FwePZW356yEAChSdNcQo6Nsp+fex1SUW09lE=
++golang.org/x/tools v0.37.0/go.mod h1:MBN5QPQtLMHVdvsbtarmTNukZDdgwdwlO5qGacAzF0w=
+ google.golang.org/api v0.0.0-20180910000450-7ca32eb868bf/go.mod h1:4mhQ8q/RsB7i+udVvVy5NUi08OU8ZlA0gRVgrF7VFY0=
+ google.golang.org/api v0.0.0-20181030000543-1d582fd0359e/go.mod h1:4mhQ8q/RsB7i+udVvVy5NUi08OU8ZlA0gRVgrF7VFY0=
+ google.golang.org/api v0.1.0/go.mod h1:UGEZY7KEX120AnNLIHFMKIo4obdJhkp2tPbaPlQx13Y=
+diff --git a/player/player.go b/player/player.go
+index 6c2fa86..fe5ece4 100755
+--- a/player/player.go
++++ b/player/player.go
+@@ -435,7 +435,7 @@ func (p *Player) Disconnect(reason string) {
+ 	p.SendPacketToClient(&packet.Disconnect{
+ 		Message:         reason,
+ 		FilteredMessage: reason,
+-		Reason:          packet.DisconnectReasonKicked,
++		Reason:          0,
+ 	})
+ 	p.Close()
+ }
+-- 
+2.43.0
+
