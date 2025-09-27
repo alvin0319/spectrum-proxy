@@ -3,39 +3,43 @@ package main
 import (
 	"strings"
 
-	"github.com/c-bata/go-prompt"
 	"github.com/cooldogedev/spectrum"
+	"github.com/elk-language/go-prompt"
+	istrings "github.com/elk-language/go-prompt/strings"
 )
 
 type Completer struct {
 	p *spectrum.Spectrum
 }
 
-func (c *Completer) Complete(d prompt.Document) []prompt.Suggest {
-	if d.TextBeforeCursor() == "" {
-		return []prompt.Suggest{}
+func (c *Completer) Complete(in prompt.Document) ([]prompt.Suggest, istrings.RuneNumber, istrings.RuneNumber) {
+	endIndex := in.CurrentRuneIndex()
+	w := in.GetWordBeforeCursor()
+	if w == "" {
+		return []prompt.Suggest{}, 0, 0
 	}
+	startIndex := endIndex - istrings.RuneCountInString(w)
 
-	args := strings.Split(d.TextBeforeCursor(), " ")
+	args := strings.Split(in.TextBeforeCursor(), " ")
 	if len(args) <= 1 {
-		return c.completeCommand(args[0])
+		return c.completeCommand(args[0]), startIndex, endIndex
 	}
 
 	// Handle command-specific completions
 	switch args[0] {
 	case "transfer":
 		if len(args) == 2 {
-			return c.completePlayerNames(args[1])
+			return c.completePlayerNames(args[1]), startIndex, endIndex
 		} else if len(args) == 3 {
-			return c.completeServerNames(args[2])
+			return c.completeServerNames(args[2]), startIndex, endIndex
 		}
 	case "players":
-		return []prompt.Suggest{}
+		return []prompt.Suggest{}, 0, 0
 	case "info":
-		return []prompt.Suggest{}
+		return []prompt.Suggest{}, 0, 0
 	}
 
-	return []prompt.Suggest{}
+	return []prompt.Suggest{}, 0, 0
 }
 
 // completeCommand provides suggestions for the main commands

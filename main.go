@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/c-bata/go-prompt"
 	"github.com/cooldogedev/spectrum"
 	"github.com/cooldogedev/spectrum/api"
 	"github.com/cooldogedev/spectrum/server"
@@ -24,6 +24,7 @@ import (
 	"github.com/cooldogedev/spectrum/session/animation"
 	"github.com/cooldogedev/spectrum/transport"
 	"github.com/cooldogedev/spectrum/util"
+	"github.com/elk-language/go-prompt"
 	"github.com/lmittmann/tint"
 	"github.com/oomph-ac/oconfig"
 	"github.com/oomph-ac/oomph"
@@ -257,27 +258,7 @@ func main() {
 
 	logger.Info("Starting spectrum proxy", "oomph-enabled", conf.OomphEnabled, "addr", proxy.Opts().Addr, "mc-version", protocol.CurrentVersion, "go-version", info.GoVersion, "commit", revision)
 
-	// Workaround for no terminal input on Linux
-	if runtime.GOOS == "linux" {
-		_, err := syscall.Open("/dev/tty", syscall.O_RDONLY, 0)
-		if err == nil {
-			go processCommand(proxy, conf)
-		} else {
-			go func() {
-				var interrupt = make(chan os.Signal, 1)
-				signal.Notify(interrupt, os.Interrupt)
-				<-interrupt
-				for _, s := range proxy.Registry().GetSessions() {
-					s.Server().WritePacket(&packet.Disconnect{})
-					s.Disconnect("Proxy restarting...")
-				}
-				time.Sleep(time.Second)
-				os.Exit(0)
-			}()
-		}
-	} else {
-		go processCommand(proxy, conf)
-	}
+	go processCommand(proxy, conf)
 
 	go func() {
 		a := api.NewAPI(proxy.Registry(), logger, api.NewSecretBasedAuthentication(conf.APIServer.Token))
@@ -351,9 +332,41 @@ func main() {
 	}
 }
 
+// isInContainer returns if the application is running in the container.
+func isInContainer() bool {
+	file, err := os.Open("/proc/1/cgroup")
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "docker") || strings.Contains(line, "kubepods") {
+			return true
+		}
+	}
+	return false
+}
+
 // processCommand initializes the command prompt and handles user input commands.
 func processCommand(proxy *spectrum.Spectrum, conf *ServerConfig) {
 	logger := slog.Default()
+	if runtime.GOOS == "linux" {
+		if isInContainer() {
+			logger.Info("Not using console due to in container environment")
+			handleTermination(proxy)
+			return
+		}
+
+		_, err := syscall.Open("/dev/tty", syscall.O_RDONLY, 0)
+		if err != nil {
+			logger.Info("Not using console due to /dev/tty not exists")
+			handleTermination(proxy)
+			return
+		}
+	}
 	c := NewCompleter(proxy)
 
 	historyFile, err := NewHistoryFile("command_history.txt", 100)
@@ -373,17 +386,18 @@ func processCommand(proxy *spectrum.Spectrum, conf *ServerConfig) {
 	}
 
 	options := []prompt.Option{
-		prompt.OptionTitle("Spectrum Proxy Console"),
-		prompt.OptionPrefixTextColor(prompt.Yellow),
-		prompt.OptionSuggestionBGColor(prompt.DarkGray),
-		prompt.OptionDescriptionBGColor(prompt.Black),
-		prompt.OptionDescriptionTextColor(prompt.White),
-		prompt.OptionSelectedSuggestionBGColor(prompt.Blue),
-		prompt.OptionSelectedSuggestionTextColor(prompt.White),
-		prompt.OptionSelectedDescriptionBGColor(prompt.Blue),
-		prompt.OptionAddKeyBind(prompt.KeyBind{
+		prompt.WithTitle("Spectrum Proxy Console"),
+		prompt.WithPrefixTextColor(prompt.Yellow),
+		prompt.WithSuggestionBGColor(prompt.DarkGray),
+		prompt.WithDescriptionBGColor(prompt.Black),
+		prompt.WithDescriptionTextColor(prompt.White),
+		prompt.WithSelectedSuggestionBGColor(prompt.Blue),
+		prompt.WithSelectedSuggestionTextColor(prompt.White),
+		prompt.WithSelectedDescriptionBGColor(prompt.Blue),
+		prompt.WithCompleter(c.Complete),
+		prompt.WithKeyBind(prompt.KeyBind{
 			Key: prompt.ControlC,
-			Fn: func(_ *prompt.Buffer) {
+			Fn: func(_ *prompt.Prompt) bool {
 				// Handle Ctrl+C to exit gracefully
 				logger.Info("Exiting Spectrum Proxy Console...")
 				if historyFile != nil {
@@ -393,21 +407,35 @@ func processCommand(proxy *spectrum.Spectrum, conf *ServerConfig) {
 				}
 				proxy.Close()
 				os.Exit(0)
+				return false
 			},
 		}),
 	}
 
 	if historyFile != nil {
-		options = append(options, prompt.OptionHistory(historyFile.GetHistory()))
+		options = append(options, prompt.WithHistory(historyFile.GetHistory()))
 	}
 
 	p := prompt.New(
 		executor,
-		c.Complete,
 		options...,
 	)
 
 	p.Run()
+}
+
+func handleTermination(proxy *spectrum.Spectrum) {
+	go func() {
+		var interrupt = make(chan os.Signal, 1)
+		signal.Notify(interrupt, os.Interrupt)
+		<-interrupt
+		for _, s := range proxy.Registry().GetSessions() {
+			s.Server().WritePacket(&packet.Disconnect{})
+			s.Disconnect("Proxy restarting...")
+		}
+		time.Sleep(time.Second)
+		os.Exit(0)
+	}()
 }
 
 // handleCommand processes the input command

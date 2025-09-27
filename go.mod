@@ -3,7 +3,6 @@ module github.com/alvin0319/spectrum-proxy
 go 1.24.3
 
 require (
-	github.com/c-bata/go-prompt v0.2.6
 	github.com/cooldogedev/spectrum v0.0.43
 	github.com/lmittmann/tint v1.1.2
 	github.com/oomph-ac/oconfig v0.0.0-20250912013507-a80d378a6595
@@ -20,6 +19,7 @@ require (
 	github.com/df-mc/dragonfly v0.10.6-0.20250708145727-07da2e859609 // indirect
 	github.com/df-mc/goleveldb v1.1.9 // indirect
 	github.com/df-mc/worldupgrader v1.0.19 // indirect
+	github.com/elk-language/go-prompt v1.3.1 // indirect
 	github.com/elliotchance/orderedmap/v2 v2.2.0 // indirect
 	github.com/ethaniccc/float32-cube v0.0.0-20250511224129-7af1f8c4ee12 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
@@ -31,13 +31,14 @@ require (
 	github.com/hjson/hjson-go/v4 v4.5.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
-	github.com/mattn/go-runewidth v0.0.9 // indirect
-	github.com/mattn/go-tty v0.0.3 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/mattn/go-tty v0.0.7 // indirect
 	github.com/muhammadmuzzammil1998/jsonc v1.0.0 // indirect
 	github.com/pkg/term v1.2.0-beta.2 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sandertv/go-raknet v1.14.3-0.20250305181847-6af3e95113d6 // indirect
 	github.com/scylladb/go-set v1.0.2 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
