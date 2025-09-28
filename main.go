@@ -277,6 +277,14 @@ func main() {
 		if err != nil {
 			continue
 		}
+		s.SetAnimation(&animation.Fade{
+			Colour: color.RGBA{},
+			Timing: protocol.CameraFadeTimeData{
+				FadeInDuration:  0.32,
+				WaitDuration:    0.84,
+				FadeOutDuration: 0.23,
+			},
+		})
 		if conf.OomphEnabled {
 			go func(s *session.Session) {
 				// Disable auto-login so that Oomph's processor can modify the StartGame data to allow server-authoritative movement.
@@ -294,9 +302,8 @@ func main() {
 					f.Close()
 				})
 				proc.Player().SetRecoverFunc(func(p *player.Player, err any) {
-					fmt.Println("ERROR:", err)
+					logger.Error("Error during processing player packet", "player", p.Name(), "err", err)
 					debug.PrintStack()
-					os.Exit(1)
 				})
 				proc.Player().AddPerm(player.PermissionDebug)
 				proc.Player().AddPerm(player.PermissionAlerts)
@@ -315,19 +322,6 @@ func main() {
 
 				proc.Player().SetServerConn(s.Server())
 			}(s)
-		} else {
-			s.SetProcessor(&TransferProcessor{
-				s:   s,
-				log: slog.Default(),
-			})
-			s.SetAnimation(&animation.Fade{
-				Colour: color.RGBA{},
-				Timing: protocol.CameraFadeTimeData{
-					FadeInDuration:  0.32,
-					WaitDuration:    0.84,
-					FadeOutDuration: 0.23,
-				},
-			})
 		}
 	}
 }
