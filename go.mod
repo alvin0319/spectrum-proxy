@@ -8,7 +8,7 @@ require (
 	github.com/oomph-ac/oconfig v0.0.0-20250912013507-a80d378a6595
 	github.com/oomph-ac/oomph v0.0.0-20250921020904-8a5b70013841
 	github.com/pelletier/go-toml v1.9.5
-	github.com/sandertv/gophertunnel v1.49.0
+	github.com/sandertv/gophertunnel v1.50.0
 )
 
 require (
@@ -18,6 +18,7 @@ require (
 	github.com/cooldogedev/spectral v0.0.5 // indirect
 	github.com/df-mc/dragonfly v0.10.6-0.20250708145727-07da2e859609 // indirect
 	github.com/df-mc/goleveldb v1.1.9 // indirect
+	github.com/df-mc/jsonc v1.0.5 // indirect
 	github.com/df-mc/worldupgrader v1.0.19 // indirect
 	github.com/elk-language/go-prompt v1.3.1 // indirect
 	github.com/elliotchance/orderedmap/v2 v2.2.0 // indirect
