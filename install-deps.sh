@@ -5,6 +5,6 @@ git clone https://github.com/oomph-ac/oomph
 
 cp patches/* oomph/
 
-cd oomph && git am 0001-yay.patch --whitespace=fix
+cd oomph && git am 0001-fixes-for-latest-gophertunnel.patch --whitespace=fix
 
 go mod tidy && go get
