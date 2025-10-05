@@ -4,4 +4,4 @@ spectrum-proxy
 .idea
 ./oomph/
 ./dragonfly
-./logs/
+logs/
