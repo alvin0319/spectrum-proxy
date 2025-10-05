@@ -40,9 +40,9 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build -v -o spectrum-proxy-${{ matrix.goos }}-${{ matrix.goarch }}.exe
+            go build o spectrum-proxy-${{ matrix.goos }}-${{ matrix.goarch }}.exe
           else
-            go build -v -o spectrum-proxy-${{ matrix.goos }}-${{ matrix.goarch }}
+            go build -o spectrum-proxy-${{ matrix.goos }}-${{ matrix.goarch }}
           fi
 
       - name: Upload artifacts
