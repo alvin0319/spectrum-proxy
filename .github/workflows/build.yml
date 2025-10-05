@@ -40,7 +40,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build o spectrum-proxy-${{ matrix.goos }}-${{ matrix.goarch }}.exe
+            go build -o spectrum-proxy-${{ matrix.goos }}-${{ matrix.goarch }}.exe
           else
             go build -o spectrum-proxy-${{ matrix.goos }}-${{ matrix.goarch }}
           fi
