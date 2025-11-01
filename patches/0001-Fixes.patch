@@ -1,37 +1,52 @@
-From 0eb8aaf992d3114f68a1171703d5fb2af0aafcab Mon Sep 17 00:00:00 2001
+From 0da1ab93b28d01cb58c4077dcf197b810b68ace6 Mon Sep 17 00:00:00 2001
 From: alvin0319 <alvin7810@naver.com>
-Date: Sun, 5 Oct 2025 09:24:38 +0900
+Date: Sat, 1 Nov 2025 14:36:08 +0900
 Subject: [PATCH] Fixes
 
 ---
- go.mod           | 14 +++++++-------
- go.sum           |  9 +++++++++
- player/player.go |  2 +-
- 3 files changed, 17 insertions(+), 8 deletions(-)
+ go.mod | 20 +++++++++++---------
+ go.sum | 20 ++++++++++++++++++--
+ 2 files changed, 29 insertions(+), 11 deletions(-)
 
 diff --git a/go.mod b/go.mod
-index e6b430d..b0a3b58 100755
+index ad8a6eb..c697b5a 100755
 --- a/go.mod
 +++ b/go.mod
-@@ -12,7 +12,7 @@ require (
+@@ -3,15 +3,15 @@ module github.com/oomph-ac/oomph
+ go 1.24.1
+ 
+ require (
+-	github.com/akmalfairuz/legacy-version v1.5.4
++	github.com/akmalfairuz/legacy-version v1.6.0
+ 	github.com/chewxy/math32 v1.10.1
+-	github.com/cooldogedev/spectrum v0.0.40-0.20250527034552-55ddfe1bba67
++	github.com/cooldogedev/spectrum v0.0.43
+ 	github.com/df-mc/dragonfly v0.10.9
+ 	github.com/ethaniccc/float32-cube v0.0.0-20250511224129-7af1f8c4ee12
  	github.com/getsentry/sentry-go v0.27.0
  	github.com/go-echarts/statsview v0.4.2
  	github.com/go-gl/mathgl v1.2.0
 -	github.com/oomph-ac/oconfig v0.0.0-20250315200330-e36f34d634e5
-+	github.com/oomph-ac/oconfig v0.0.0-20250912013507-a80d378a6595
++	github.com/oomph-ac/oconfig v0.0.0-20251101033322-78b0f0179529
  	github.com/sandertv/go-raknet v1.14.3-0.20250305181847-6af3e95113d6
- 	github.com/sandertv/gophertunnel v1.50.0
+ 	github.com/sandertv/gophertunnel v1.51.0
  	github.com/zeebo/xxh3 v1.0.2
-@@ -30,7 +30,7 @@ require (
- 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
+@@ -29,11 +29,13 @@ require (
+ 	github.com/go-echarts/go-echarts/v2 v2.5.1 // indirect
+ 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
  	github.com/golang/snappy v1.0.0 // indirect
++	github.com/google/go-cmp v0.7.0 // indirect
  	github.com/google/uuid v1.6.0 // indirect
 -	github.com/hjson/hjson-go/v4 v4.4.0 // indirect
 +	github.com/hjson/hjson-go/v4 v4.5.0 // indirect
- 	github.com/klauspost/compress v1.18.0 // indirect
+ 	github.com/klauspost/compress v1.18.1 // indirect
  	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
- 	github.com/muhammadmuzzammil1998/jsonc v1.0.0 // indirect
-@@ -55,14 +55,14 @@ require (
+ 	github.com/onsi/gomega v1.36.3 // indirect
++	github.com/pelletier/go-toml v1.9.5 // indirect
+ 	github.com/quic-go/quic-go v0.55.0 // indirect
+ 	github.com/rs/cors v1.11.0 // indirect
+ 	github.com/samber/lo v1.49.1 // indirect
+@@ -53,14 +55,14 @@ require (
  
  //replace github.com/sandertv/gophertunnel => ../tedac-gophertunnel
  
@@ -52,66 +67,65 @@ index e6b430d..b0a3b58 100755
 -replace github.com/akmalfairuz/legacy-version => ../legacy-version
 +//replace github.com/akmalfairuz/legacy-version => ../legacy-version
 diff --git a/go.sum b/go.sum
-index ac65d6d..67c9be7 100755
+index 4c841dd..b1bb0aa 100755
 --- a/go.sum
 +++ b/go.sum
-@@ -8,6 +8,7 @@ dmitri.shuralyov.com/service/change v0.0.0-20181023043359-a85b471d5412/go.mod h1
+@@ -8,6 +8,10 @@ dmitri.shuralyov.com/service/change v0.0.0-20181023043359-a85b471d5412/go.mod h1
  dmitri.shuralyov.com/state v0.0.0-20180228185332-28bcc343414c/go.mod h1:0PRwlb0D6DFvNNtx+9ybjezNCa8XF0xaYcETyp6rHWU=
  git.apache.org/thrift.git v0.0.0-20180902110319-2566ecd5d999/go.mod h1:fPE2ZNJGynbRyZ4dJvy6G277gSllfV2HJqblrnkyeyg=
  github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
++github.com/akmalfairuz/legacy-version v1.5.4 h1:ICzMgFuQYzEPHaUQsFmc2ab5KjAhBeM9q2YjgMcSGW4=
 +github.com/akmalfairuz/legacy-version v1.5.4/go.mod h1:ZWhMKMZZf23E/SUz/3AKWMJ/gpXSwijA2AXMEeExY5c=
++github.com/akmalfairuz/legacy-version v1.6.0 h1:EPHbbTa4fCxflrG5uK8bkVAfW6yJ1t4FPOcSz0a2eis=
++github.com/akmalfairuz/legacy-version v1.6.0/go.mod h1:tgacrHooIhGvN5dxYCcBtCkk8Iz8LQM7svJq89BBIFk=
  github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
  github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
  github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBTaaSFSlLx/70C2HPIMNZpVV8+vt/A+FMnYP11g=
-@@ -21,6 +22,7 @@ github.com/chewxy/math32 v1.10.1/go.mod h1:dOB2rcuFrCn6UHrze36WSLVPKtzPMRAQvBvUw
+@@ -21,6 +25,10 @@ github.com/chewxy/math32 v1.10.1/go.mod h1:dOB2rcuFrCn6UHrze36WSLVPKtzPMRAQvBvUw
  github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
  github.com/cooldogedev/spectral v0.0.5 h1:VTWbJkqwDqg/eeDwIXwC6+jpXEGlOzu6QzP1hSEUhIM=
  github.com/cooldogedev/spectral v0.0.5/go.mod h1:Oq9dVLgqaRiS/hZvKvLk/XWXFOZmmTKM29u6o4GBe84=
++github.com/cooldogedev/spectrum v0.0.40-0.20250527034552-55ddfe1bba67 h1:eCxwhcFAQP2TR5+uPhr/Yh6ucVvcgpotm1lVuRKivUI=
 +github.com/cooldogedev/spectrum v0.0.40-0.20250527034552-55ddfe1bba67/go.mod h1:N4OqsCQvKJPhf8XertG+JHiP2RPfxvneiWiR9KLyVMo=
++github.com/cooldogedev/spectrum v0.0.43 h1:of6xGfP8hCtyLxvH7No7JSl54wVdlXMeVsOuR0fb/wU=
++github.com/cooldogedev/spectrum v0.0.43/go.mod h1:VUxAGnSeet4a1fyigA7NpQvu8x79rgrpISgdUtQ5Dpw=
  github.com/coreos/go-systemd v0.0.0-20181012123002-c6f51f82210d/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
  github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
  github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
-@@ -83,6 +85,8 @@ github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7/go.mod h1:Fecb
+@@ -81,8 +89,8 @@ github.com/googleapis/gax-go/v2 v2.0.3/go.mod h1:LLvjysVCY1JZeum8Z6l8qUty8fiNwE0
+ github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
+ github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
  github.com/grpc-ecosystem/grpc-gateway v1.5.0/go.mod h1:RSKVYQBd5MCa4OVpNdGskqpgL2+G+NZTnrVHpWWfpdw=
- github.com/hjson/hjson-go/v4 v4.4.0 h1:D/NPvqOCH6/eisTb5/ztuIS8GUvmpHaLOcNk1Bjr298=
- github.com/hjson/hjson-go/v4 v4.4.0/go.mod h1:KaYt3bTw3zhBjYqnXkYywcYctk0A2nxeEFTse3rH13E=
+-github.com/hjson/hjson-go/v4 v4.4.0 h1:D/NPvqOCH6/eisTb5/ztuIS8GUvmpHaLOcNk1Bjr298=
+-github.com/hjson/hjson-go/v4 v4.4.0/go.mod h1:KaYt3bTw3zhBjYqnXkYywcYctk0A2nxeEFTse3rH13E=
 +github.com/hjson/hjson-go/v4 v4.5.0 h1:ZHLiZ+HaGqPOtEe8T6qY8QHnoEsAeBv8wqxniQAp+CY=
 +github.com/hjson/hjson-go/v4 v4.5.0/go.mod h1:4zx6c7Y0vWcm8IRyVoQJUHAPJLXLvbG6X8nk1RLigSo=
  github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
  github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
  github.com/jellevandenhooff/dkim v0.0.0-20150330215556-f50fe3d243e1/go.mod h1:E0B/fFc00Y+Rasa88328GlI/XbtyysCtTHZS8h7IrBU=
-@@ -114,6 +118,9 @@ github.com/onsi/ginkgo v1.7.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+W
+@@ -112,7 +120,11 @@ github.com/onsi/ginkgo v1.7.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+W
  github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
  github.com/onsi/gomega v1.36.3 h1:hID7cr8t3Wp26+cYnfcjR6HpJ00fdogN6dqZ1t6IylU=
  github.com/onsi/gomega v1.36.3/go.mod h1:8D9+Txp43QWKhM24yyOBEdpkzN8FvJyAwecBgsU4KU0=
-+github.com/oomph-ac/oconfig v0.0.0-20250315200330-e36f34d634e5/go.mod h1:P72gajWX7dlQjcA6pjZNNyfndDQsE8zwhbaa18tX+x8=
-+github.com/oomph-ac/oconfig v0.0.0-20250912013507-a80d378a6595 h1:wlvyyTVOURdjkmdTrPfUUHn8sm+cC4FGUE1It5Dcba8=
-+github.com/oomph-ac/oconfig v0.0.0-20250912013507-a80d378a6595/go.mod h1:2hkIOpKyeO2X0YhZ3puE+9CjvFiLsSKRz2RwCPDw5ho=
++github.com/oomph-ac/oconfig v0.0.0-20251101033322-78b0f0179529 h1:A0IMrD3ZioMiPfjfbQ2gAt8C++gl0WeW5Hxf7kef39o=
++github.com/oomph-ac/oconfig v0.0.0-20251101033322-78b0f0179529/go.mod h1:2hkIOpKyeO2X0YhZ3puE+9CjvFiLsSKRz2RwCPDw5ho=
  github.com/openzipkin/zipkin-go v0.1.1/go.mod h1:NtoC/o8u3JlF1lSlyPNswIbeQH9bJTmOf0Erfk+hxe8=
++github.com/pelletier/go-toml v1.9.5 h1:4yBQzkHv+7BHq2PQUZF3Mx0IYxG7LsP222s7Agd3ve8=
++github.com/pelletier/go-toml v1.9.5/go.mod h1:u1nR/EPcESfeI/szUZKdtJ0xRNbUoANCkoOuaOx1Y+c=
  github.com/pingcap/errors v0.11.4 h1:lFuQV/oaUMGcD2tqt+01ROSmJs75VG1ToEOkZIZ4nE4=
  github.com/pingcap/errors v0.11.4/go.mod h1:Oi8TUi2kEtXXLMJk9l1cGmz20kV3TaQ0usTwv5KuLY8=
-@@ -133,6 +140,8 @@ github.com/rs/cors v1.11.0/go.mod h1:XyqrcTp5zjWr1wsJ8PIRZssZ8b/WMcMf71DJnit4EMU
+ github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+@@ -131,6 +143,10 @@ github.com/rs/cors v1.11.0/go.mod h1:XyqrcTp5zjWr1wsJ8PIRZssZ8b/WMcMf71DJnit4EMU
  github.com/russross/blackfriday v1.5.2/go.mod h1:JO/DiYxRf+HjHt06OyowR9PTA263kcR/rfWxYHBV53g=
  github.com/samber/lo v1.49.1 h1:4BIFyVfuQSEpluc7Fua+j1NolZHiEHEpaSEKdsH0tew=
  github.com/samber/lo v1.49.1/go.mod h1:dO6KHFzUKXgP8LDhU0oI8d2hekjXnGOu0DB8Jecxd6o=
++github.com/sandertv/go-raknet v1.14.3-0.20250305181847-6af3e95113d6 h1:ZfK7NCzIDE+dzp5x6NIO4JDLsjsOxi762CNR1Obds2Q=
 +github.com/sandertv/go-raknet v1.14.3-0.20250305181847-6af3e95113d6/go.mod h1:/yysjwfCXm2+2OY8mBazLzcxJ3irnylKCyG3FLgUPVU=
-+github.com/sandertv/gophertunnel v1.50.0/go.mod h1:WjTvUo02TmvPULY1y5oxxAhZIeH8ew31/LUkSUD6ABw=
++github.com/sandertv/gophertunnel v1.51.0 h1:16YmOR6AwtreQjbDynFD5kWt7sm+MwdCs79Yl7RGrPc=
++github.com/sandertv/gophertunnel v1.51.0/go.mod h1:IhLg93aMPY/rKgB7lKxTzOZ6i11OgkL0WinVs+gMvlI=
  github.com/scylladb/go-set v1.0.2 h1:SkvlMCKhP0wyyct6j+0IHJkBkSZL+TDzZ4E7f7BCcRE=
  github.com/scylladb/go-set v1.0.2/go.mod h1:DkpGd78rljTxKAnTDPFqXSGxvETQnJyuSOQwsHycqfs=
  github.com/segmentio/fasthash v1.0.3 h1:EI9+KE1EwvMLBWwjpRDc+fEM+prwxDYbslddQGtrmhM=
-diff --git a/player/player.go b/player/player.go
-index 6c2fa86..fe5ece4 100755
---- a/player/player.go
-+++ b/player/player.go
-@@ -435,7 +435,7 @@ func (p *Player) Disconnect(reason string) {
- 	p.SendPacketToClient(&packet.Disconnect{
- 		Message:         reason,
- 		FilteredMessage: reason,
--		Reason:          packet.DisconnectReasonKicked,
-+		Reason:          0,
- 	})
- 	p.Close()
- }
 -- 
 2.43.0
 
